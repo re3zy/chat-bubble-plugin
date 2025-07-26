@@ -53,6 +53,10 @@ function App() {
     { name: "placeholder", type: "text", defaultValue: "Type your message...", label: "Input Placeholder" },
     { name: "showTimestamps", type: "checkbox", defaultValue: true, label: "Show Timestamps" },
     { name: "showUserEmail", type: "checkbox", defaultValue: false, label: "Show User Email" },
+    
+    // Author detection configuration
+    { name: "assistantIdentifiers", type: "text", defaultValue: "assistant,ai,bot,agent", label: "Assistant Identifiers (comma-separated)" },
+    { name: "currentUserEmail", type: "text", defaultValue: "", label: "Current User Email (Optional)" },
   ]);
 
   const config = useConfig();
@@ -72,6 +76,13 @@ function App() {
   const placeholder = config.placeholder || "Type your message...";
   const showTimestamps = config.showTimestamps !== false;
   const showUserEmail = config.showUserEmail === true;
+  
+  // Author detection configuration
+  const assistantIdentifiers = (config.assistantIdentifiers || "assistant,ai,bot,agent")
+    .split(',')
+    .map(id => id.trim().toLowerCase())
+    .filter(id => id.length > 0);
+  const currentUserEmail = config.currentUserEmail || "";
   
   // Local state for messages
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -100,7 +111,8 @@ function App() {
     console.log("Processing chat data:", {
       messageCount: messageArray.length,
       authors: authorArray,
-      messages: messageArray
+      messages: messageArray,
+      assistantIdentifiers: assistantIdentifiers
     });
     
     // Transform the data into ChatMessage format
@@ -111,15 +123,25 @@ function App() {
         const author = String(authorArray[index] || '').toLowerCase();
         const email = emailArray[index] ? String(emailArray[index]) : undefined;
         
-        // Check if author is "user" or contains user email/name
-        const isUser = author === 'user' || 
-                      author.includes('ram kaushik') || 
-                      (email && author.includes(email.split('@')[0]));
+        // Check if this is an assistant message
+        const isAssistant = assistantIdentifiers.some(identifier => 
+          author.includes(identifier)
+        );
+        
+        // If we have a current user email configured, check if the author matches
+        const isCurrentUser = currentUserEmail && (
+          author === currentUserEmail.toLowerCase() ||
+          author.includes(currentUserEmail.split('@')[0].toLowerCase()) ||
+          (email && email.toLowerCase() === currentUserEmail.toLowerCase())
+        );
+        
+        // Determine sender: if it's identified as assistant, it's assistant; otherwise it's user
+        const sender = isAssistant ? 'assistant' : 'user';
         
         return {
           id: idArray[index] ? String(idArray[index]) : `msg-${index}`,
           content: String(message),
-          sender: isUser ? 'user' : 'assistant',
+          sender: sender,
           timestamp: timestampArray[index] ? new Date(timestampArray[index]) : new Date(),
           email: email,
         };
@@ -127,7 +149,7 @@ function App() {
       .filter((msg): msg is ChatMessage => msg !== null);
     
     setMessages(transformedMessages);
-  }, [chatData, config.messageColumn, config.authorColumn, config.timestampColumn, config.idColumn, config.emailColumn]);
+  }, [chatData, config.messageColumn, config.authorColumn, config.timestampColumn, config.idColumn, config.emailColumn, assistantIdentifiers, currentUserEmail]);
   
   // Handle sending a message
   const handleSendMessage = useCallback(async (message: string) => {
