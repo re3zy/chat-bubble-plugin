@@ -1,9 +1,10 @@
 [build]
-  command = "npm run build"
+  command = "npm run build -- --mode production"
   publish = "dist"
 
 [build.environment]
   NODE_VERSION = "18"
+  CI = "false"
 
 [[redirects]]
   from = "/*"
