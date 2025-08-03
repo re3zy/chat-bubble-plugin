@@ -21,6 +21,5 @@ export interface ChatInterfaceProps {
   isLoading?: boolean;
   title?: string;
   placeholder?: string;
-  showTimestamps?: boolean;
   showUserEmail?: boolean;
 }

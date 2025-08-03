@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import "./App.css";
 import {
   client,
@@ -51,7 +51,6 @@ function App() {
     // UI Configuration
     { name: "chatTitle", type: "text", defaultValue: "AI Assistant", label: "Chat Title" },
     { name: "placeholder", type: "text", defaultValue: "Type your message...", label: "Input Placeholder" },
-    { name: "showTimestamps", type: "checkbox", defaultValue: true, label: "Show Timestamps" },
     { name: "showUserEmail", type: "checkbox", defaultValue: false, label: "Show User Email" },
     
     // Author detection configuration
@@ -74,25 +73,25 @@ function App() {
   // UI configuration
   const chatTitle = config.chatTitle || "AI Assistant";
   const placeholder = config.placeholder || "Type your message...";
-  const showTimestamps = config.showTimestamps !== false;
   const showUserEmail = config.showUserEmail === true;
   
-  // Author detection configuration
-  const assistantIdentifiers = (config.assistantIdentifiers || "assistant,ai,bot,agent")
-    .split(',')
-    .map(id => id.trim().toLowerCase())
-    .filter(id => id.length > 0);
+  // Author detection configuration - memoize to prevent recreating on every render
+  const assistantIdentifiers = useMemo(() => 
+    (config.assistantIdentifiers || "assistant,ai,bot,agent")
+      .split(',')
+      .map(id => id.trim().toLowerCase())
+      .filter(id => id.length > 0),
+    [config.assistantIdentifiers]
+  );
   const currentUserEmail = config.currentUserEmail || "";
   
   // Local state for messages
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [lastMessageCount, setLastMessageCount] = useState(0);
   
   // Transform Sigma data to our chat message format
   useEffect(() => {
     if (!chatData || !config.messageColumn || !config.authorColumn) {
-      console.log("Chat data not yet available", { chatData, messageColumn: config.messageColumn, authorColumn: config.authorColumn });
       return;
     }
     
@@ -107,13 +106,6 @@ function App() {
     const timestampArray = timestampCol ? (chatData[timestampCol] || []) : [];
     const idArray = idCol ? (chatData[idCol] || []) : [];
     const emailArray = emailCol ? (chatData[emailCol] || []) : [];
-    
-    console.log("Processing chat data:", {
-      messageCount: messageArray.length,
-      authors: authorArray,
-      messages: messageArray,
-      assistantIdentifiers: assistantIdentifiers
-    });
     
     // Transform the data into ChatMessage format
     const transformedMessages: ChatMessage[] = messageArray
@@ -149,23 +141,28 @@ function App() {
       .filter((msg): msg is ChatMessage => msg !== null);
     
     setMessages(transformedMessages);
-  }, [chatData, config.messageColumn, config.authorColumn, config.timestampColumn, config.idColumn, config.emailColumn, assistantIdentifiers, currentUserEmail]);
+  }, [
+    chatData, 
+    config.messageColumn, 
+    config.authorColumn, 
+    config.timestampColumn, 
+    config.idColumn, 
+    config.emailColumn,
+    config.assistantIdentifiers,
+    config.currentUserEmail
+  ]);
   
   // Handle sending a message
   const handleSendMessage = useCallback(async (message: string) => {
     if (!message.trim() || !triggerSendMessage) {
-      console.log("Cannot send message:", { message: message.trim(), hasTrigger: !!triggerSendMessage });
       return;
     }
     
     setIsLoading(true);
     
     try {
-      console.log("Sending message:", message);
-      
       // Update the prompt control with the message
       if (config.promptControl && setPromptValue) {
-        console.log("Updating prompt control:", config.promptControl);
         setPromptValue(message);
         
         // Small delay to ensure the control is updated
@@ -175,8 +172,6 @@ function App() {
       // Trigger the action chain
       // The action will read from the control we just updated
       await triggerSendMessage();
-      
-      console.log("Action triggered successfully");
       
       // Clear the prompt control after a short delay
       if (config.promptControl && setPromptValue) {
@@ -200,23 +195,6 @@ function App() {
       setIsLoading(false);
     }
   }, [triggerSendMessage, config.promptControl, setPromptValue]);
-  
-  // Debug logging
-  useEffect(() => {
-    console.log('Chat Plugin Status:', {
-      isConfigured: !!(config.chatDataSource && config.messageColumn && config.authorColumn),
-      hasActionTrigger: !!triggerSendMessage,
-      hasPromptControl: !!config.promptControl,
-      messageCount: messages.length,
-      chatDataSource: config.chatDataSource,
-      promptControl: config.promptControl,
-      columns: {
-        author: config.authorColumn,
-        message: config.messageColumn,
-        timestamp: config.timestampColumn,
-      }
-    });
-  }, [config, messages, triggerSendMessage]);
   
   // Check if plugin is properly configured
   const isConfigured = config.chatDataSource && config.messageColumn && config.authorColumn && config.promptControl && triggerSendMessage;
@@ -287,7 +265,6 @@ function App() {
         isLoading={isLoading}
         title={chatTitle}
         placeholder={placeholder}
-        showTimestamps={showTimestamps}
         showUserEmail={showUserEmail}
       />
     </div>
