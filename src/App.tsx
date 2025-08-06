@@ -49,9 +49,18 @@ function App() {
     },
     
     // UI Configuration
-    { name: "chatTitle", type: "text", defaultValue: "AI Assistant", label: "Chat Title" },
     { name: "placeholder", type: "text", defaultValue: "Type your message...", label: "Input Placeholder" },
     { name: "showUserEmail", type: "checkbox", defaultValue: false, label: "Show User Email" },
+    
+    // Color Configuration (Simplified)
+    { name: "colorSection", type: "group", label: "Color Settings" },
+    { name: "backgroundColor", source: "colorSection", type: "text", defaultValue: "#F2F2F7", label: "Background Color (hex)" },
+    { name: "userBubbleColor", source: "colorSection", type: "text", defaultValue: "#007AFF", label: "User Bubble Color (hex)" },
+    { name: "userTextColor", source: "colorSection", type: "text", defaultValue: "#FFFFFF", label: "User Text Color (hex)" },
+    { name: "assistantBubbleColor", source: "colorSection", type: "text", defaultValue: "#E9E9EB", label: "Assistant Bubble Color (hex)" },
+    { name: "assistantTextColor", source: "colorSection", type: "text", defaultValue: "#000000", label: "Assistant Text Color (hex)" },
+    { name: "buttonBackgroundColor", source: "colorSection", type: "text", defaultValue: "#3B82F6", label: "Send Button Color (hex)" },
+    { name: "buttonTextColor", source: "colorSection", type: "text", defaultValue: "#FFFFFF", label: "Send Button Text Color (hex)" },
     
     // Author detection configuration
     { name: "assistantIdentifiers", type: "text", defaultValue: "assistant,ai,bot,agent", label: "Assistant Identifiers (comma-separated)" },
@@ -71,9 +80,36 @@ function App() {
   const triggerSendMessage = useActionTrigger(config.sendMessageAction);
   
   // UI configuration
-  const chatTitle = config.chatTitle || "AI Assistant";
   const placeholder = config.placeholder || "Type your message...";
   const showUserEmail = config.showUserEmail === true;
+  
+  // Color configuration with validation
+  const colorConfig = useMemo(() => {
+    const validateHexColor = (color: string | undefined, defaultColor: string): string => {
+      if (!color) return defaultColor;
+      // Check if it's a valid hex color
+      const hexRegex = /^#([0-9A-Fa-f]{3}){1,2}$/;
+      return hexRegex.test(color) ? color : defaultColor;
+    };
+    
+    return {
+      backgroundColor: validateHexColor(config.backgroundColor, "#F2F2F7"),
+      userBubbleColor: validateHexColor(config.userBubbleColor, "#007AFF"),
+      userTextColor: validateHexColor(config.userTextColor, "#FFFFFF"),
+      assistantBubbleColor: validateHexColor(config.assistantBubbleColor, "#E9E9EB"),
+      assistantTextColor: validateHexColor(config.assistantTextColor, "#000000"),
+      buttonBackgroundColor: validateHexColor(config.buttonBackgroundColor, "#3B82F6"),
+      buttonTextColor: validateHexColor(config.buttonTextColor, "#FFFFFF"),
+      // Fixed colors that don't need configuration
+      headerBackgroundColor: "#FFFFFF",
+      headerTextColor: "#1F2937",
+      inputBackgroundColor: "#F3F4F6",
+      inputTextColor: "#1F2937",
+      timestampColor: "#6B7280",
+      dayStampBackgroundColor: "#F3F4F6",
+      dayStampTextColor: "#6B7280",
+    };
+  }, [config]);
   
   // Author detection configuration - memoize to prevent recreating on every render
   const assistantIdentifiers = useMemo(() => 
@@ -263,9 +299,9 @@ function App() {
         onSendMessage={handleSendMessage}
         onClearChat={undefined} // Removed clear chat for now
         isLoading={isLoading}
-        title={chatTitle}
         placeholder={placeholder}
         showUserEmail={showUserEmail}
+        colorConfig={colorConfig}
       />
     </div>
   );

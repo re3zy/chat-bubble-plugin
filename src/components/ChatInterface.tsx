@@ -1,16 +1,34 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatInterfaceProps, ChatMessage } from '../types/chat.types';
-import { format } from 'date-fns';
+import { ChatInterfaceProps, ChatMessage, ColorConfig } from '../types/chat.types';
+import { format, isToday, isYesterday, isWithinInterval, subDays, isSameDay, isSameYear } from 'date-fns';
 import clsx from 'clsx';
+
+// Default color configuration
+const DEFAULT_COLORS: ColorConfig = {
+  backgroundColor: '#F2F2F7',
+  userBubbleColor: '#007AFF',
+  userTextColor: '#FFFFFF',
+  assistantBubbleColor: '#E9E9EB',
+  assistantTextColor: '#000000',
+  headerBackgroundColor: '#FFFFFF',
+  headerTextColor: '#1F2937',
+  inputBackgroundColor: '#F3F4F6',
+  inputTextColor: '#1F2937',
+  buttonBackgroundColor: '#3B82F6',
+  buttonTextColor: '#FFFFFF',
+  timestampColor: '#6B7280',
+  dayStampBackgroundColor: '#F3F4F6',
+  dayStampTextColor: '#6B7280',
+};
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({
   messages,
   onSendMessage,
   onClearChat,
   isLoading = false,
-  title = 'AI Assistant',
   placeholder = 'Type your message...',
   showUserEmail = false,
+  colorConfig = DEFAULT_COLORS,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -88,25 +106,52 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
   
   const formatTimestamp = (date: Date) => {
-    return format(date, 'HH:mm');
+    return format(date, 'h:mm a'); // Using 12-hour format with AM/PM
+  };
+  
+  // Function to generate the day stamp label
+  const getDayStamp = (date: Date): string => {
+    const messageDate = new Date(date);
+    const now = new Date();
+    
+    if (isToday(messageDate)) {
+      return 'Today';
+    }
+    
+    if (isYesterday(messageDate)) {
+      return 'Yesterday';
+    }
+    
+    // Check if within the last 7 days
+    const sevenDaysAgo = subDays(now, 7);
+    if (isWithinInterval(messageDate, { start: sevenDaysAgo, end: now })) {
+      return format(messageDate, 'EEEE'); // Full day name like "Monday"
+    }
+    
+    // For older messages, show full date
+    if (isSameYear(messageDate, now)) {
+      return format(messageDate, 'EEE, MMM d'); // e.g., "Sat, Jul 5"
+    } else {
+      return format(messageDate, 'MMM d, yyyy'); // e.g., "Jul 5, 2023"
+    }
+  };
+  
+  // Function to determine if we should show a day stamp before this message
+  const shouldShowDayStamp = (currentMessage: ChatMessage, previousMessage: ChatMessage | null): boolean => {
+    if (!previousMessage) {
+      // Always show day stamp for the first message
+      return true;
+    }
+    
+    const currentDate = new Date(currentMessage.timestamp);
+    const previousDate = new Date(previousMessage.timestamp);
+    
+    // Show day stamp if the messages are on different days
+    return !isSameDay(currentDate, previousDate);
   };
   
   return (
-    <div className="chat-container">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
-        {onClearChat && (
-          <button
-            onClick={onClearChat}
-            className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-            disabled={isLoading || messages.length === 0}
-          >
-            Clear Chat
-          </button>
-        )}
-      </div>
-      
+    <div className="chat-container" style={{ backgroundColor: colorConfig.backgroundColor }}>
       {/* Messages Area */}
       <div 
         ref={messagesContainerRef}
@@ -119,19 +164,34 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </div>
         ) : (
           <>
-            {messages.map((message, index) => (
-              <AnimatedMessageBubble
-                key={message.id}
-                message={message}
-                showUserEmail={showUserEmail}
-                formatTimestamp={formatTimestamp}
-                shouldAnimate={
-                  message.sender === 'assistant' && 
-                  index === messages.length - 1 &&
-                  isMessageNew(message.timestamp)
-                }
-              />
-            ))}
+            {messages.map((message, index) => {
+              const previousMessage = index > 0 ? messages[index - 1] : null;
+              const showDayStamp = shouldShowDayStamp(message, previousMessage);
+              
+              return (
+                <React.Fragment key={message.id}>
+                  {showDayStamp && (
+                    <DayStamp 
+                      date={message.timestamp} 
+                      getDayStamp={getDayStamp}
+                      formatTimestamp={formatTimestamp}
+                      colorConfig={colorConfig}
+                    />
+                  )}
+                  <AnimatedMessageBubble
+                    message={message}
+                    showUserEmail={showUserEmail}
+                    formatTimestamp={formatTimestamp}
+                    shouldAnimate={
+                      message.sender === 'assistant' && 
+                      index === messages.length - 1 &&
+                      isMessageNew(message.timestamp)
+                    }
+                    colorConfig={colorConfig}
+                  />
+                </React.Fragment>
+              );
+            })}
             {shouldShowLoading && <LoadingIndicator />}
           </>
         )}
@@ -165,7 +225,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       )}
       
       {/* Input Area */}
-      <form onSubmit={handleSubmit} className="chat-input-container">
+      <form onSubmit={handleSubmit} className="chat-input-container border-t border-gray-200" style={{ backgroundColor: colorConfig.headerBackgroundColor }}>
         <div className="flex items-center space-x-2">
           <input
             ref={inputRef}
@@ -176,24 +236,33 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             placeholder={placeholder}
             disabled={isLoading || shouldShowLoading}
             className={clsx(
-              "flex-1 px-4 py-2 bg-gray-100 rounded-full",
-              "text-gray-800 placeholder-gray-500",
-              "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white",
+              "flex-1 px-4 py-2 rounded-full",
+              "placeholder-gray-500",
+              "focus:outline-none focus:ring-2 focus:ring-offset-2",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               "transition-all duration-200"
             )}
+            style={{
+              backgroundColor: colorConfig.inputBackgroundColor,
+              color: colorConfig.inputTextColor,
+              '--tw-ring-color': colorConfig.buttonBackgroundColor,
+            } as React.CSSProperties}
           />
           <button
             type="submit"
             disabled={!inputValue.trim() || isLoading || shouldShowLoading}
             className={clsx(
               "px-6 py-2 rounded-full font-medium",
-              "bg-blue-500 text-white",
-              "hover:bg-blue-600 active:bg-blue-700",
+              "hover:opacity-90 active:opacity-80",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               "transition-all duration-200",
-              "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              "focus:outline-none focus:ring-2 focus:ring-offset-2"
             )}
+            style={{
+              backgroundColor: colorConfig.buttonBackgroundColor,
+              color: colorConfig.buttonTextColor,
+              '--tw-ring-color': colorConfig.buttonBackgroundColor,
+            } as React.CSSProperties}
           >
             {isLoading ? (
               <span className="flex items-center">
@@ -225,12 +294,40 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   );
 };
 
+// Day Stamp Component
+interface DayStampProps {
+  date: Date;
+  getDayStamp: (date: Date) => string;
+  formatTimestamp: (date: Date) => string;
+  colorConfig: ColorConfig;
+}
+
+const DayStamp: React.FC<DayStampProps> = ({ date, getDayStamp, formatTimestamp, colorConfig }) => {
+  const dayLabel = getDayStamp(date);
+  const timeLabel = formatTimestamp(date);
+  
+  return (
+    <div className="flex justify-center my-4">
+      <div 
+        className="text-xs px-3 py-1 rounded-full"
+        style={{ 
+          backgroundColor: colorConfig.dayStampBackgroundColor,
+          color: colorConfig.dayStampTextColor 
+        }}
+      >
+        {dayLabel} {timeLabel}
+      </div>
+    </div>
+  );
+};
+
 // Animated Message Bubble Component with Typewriter Effect
 interface AnimatedMessageBubbleProps {
   message: ChatMessage;
   showUserEmail: boolean;
   formatTimestamp: (date: Date) => string;
   shouldAnimate: boolean;
+  colorConfig: ColorConfig;
 }
 
 const AnimatedMessageBubble: React.FC<AnimatedMessageBubbleProps> = ({
@@ -238,12 +335,12 @@ const AnimatedMessageBubble: React.FC<AnimatedMessageBubbleProps> = ({
   showUserEmail,
   formatTimestamp,
   shouldAnimate,
+  colorConfig,
 }) => {
   const isUser = message.sender === 'user';
   const [displayedText, setDisplayedText] = useState(shouldAnimate ? '' : message.content);
   const [currentIndex, setCurrentIndex] = useState(shouldAnimate ? 0 : message.content.length);
   const [isTyping, setIsTyping] = useState(shouldAnimate);
-  const [isHovered, setIsHovered] = useState(false);
   
   useEffect(() => {
     // Only run animation logic if we're currently typing
@@ -347,68 +444,45 @@ const AnimatedMessageBubble: React.FC<AnimatedMessageBubbleProps> = ({
     }, delay);
     
     return () => clearTimeout(timeout);
-  }, [currentIndex, isTyping, message.content.length]); // Fixed dependencies
+  }, [currentIndex, isTyping, message.content.length]);
   
   return (
     <div
       className={clsx(
-        "group flex items-start gap-0",
-        isUser ? "justify-end" : "justify-start"
+        "group flex flex-col gap-0.5 mb-3",
+        isUser ? "items-end" : "items-start"
       )}
     >
-      {/* Timestamp on the left for assistant messages */}
-      {!isUser && (
-        <div 
-          className={clsx(
-            "text-xs text-gray-500 transition-all duration-500 ease-in-out whitespace-nowrap self-end mb-2 mr-2",
-            isHovered && !isTyping ? "opacity-100 w-12" : "opacity-0 w-0 overflow-hidden"
-          )}
-        >
-          {formatTimestamp(message.timestamp)}
-        </div>
-      )}
-      
-      <div 
-        className={clsx(
-          "flex flex-col transition-transform duration-500 ease-in-out",
-          isUser && isHovered && "translate-x-[-1rem]",
-          !isUser && isHovered && "translate-x-[1rem]"
-        )}
-      >
-        {/* Show email above user messages if enabled */}
-        {showUserEmail && isUser && message.email && (
-          <p className="text-xs text-gray-500 mb-1 px-2 text-right">
-            {message.email}
-          </p>
-        )}
-        
-        <div
-          className={clsx(
-            "chat-bubble",
-            isUser ? "chat-bubble-user" : "chat-bubble-assistant",
-            isTyping && !isUser && "assistant-typing"
-          )}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-        >
-          <p className="whitespace-pre-wrap break-words">
-            {displayedText}
-            {isTyping && <span className="typewriter-cursor" />}
-          </p>
-        </div>
+      {/* Timestamp - Always visible above the bubble */}
+      <div className="text-xs px-2" style={{ color: colorConfig.timestampColor }}>
+        {formatTimestamp(message.timestamp)}
       </div>
       
-      {/* Timestamp on the right for user messages */}
-      {isUser && (
-        <div 
-          className={clsx(
-            "text-xs text-gray-500 transition-all duration-500 ease-in-out whitespace-nowrap self-end mb-2 ml-2",
-            isHovered ? "opacity-100 w-12" : "opacity-0 w-0 overflow-hidden"
-          )}
-        >
-          {formatTimestamp(message.timestamp)}
-        </div>
+      {/* Show email above user messages if enabled */}
+      {showUserEmail && isUser && message.email && (
+        <p className="text-xs px-2 mb-1" style={{ color: colorConfig.timestampColor }}>
+          {message.email}
+        </p>
       )}
+      
+      {/* Message bubble */}
+      <div
+        className={clsx(
+          "chat-bubble",
+          isTyping && !isUser && "assistant-typing"
+        )}
+        style={{
+          backgroundColor: isUser ? colorConfig.userBubbleColor : colorConfig.assistantBubbleColor,
+          color: isUser ? colorConfig.userTextColor : colorConfig.assistantTextColor,
+          borderBottomRightRadius: isUser ? '0.25rem' : undefined,
+          borderBottomLeftRadius: !isUser ? '0.25rem' : undefined,
+        }}
+      >
+        <p className="whitespace-pre-wrap break-words">
+          {displayedText}
+          {isTyping && <span className="typewriter-cursor" />}
+        </p>
+      </div>
     </div>
   );
 };
