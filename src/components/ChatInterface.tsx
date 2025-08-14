@@ -14,6 +14,7 @@ const DEFAULT_COLORS: ColorConfig = {
   headerTextColor: '#1F2937',
   inputBackgroundColor: '#F3F4F6',
   inputTextColor: '#1F2937',
+  placeholderTextColor: '#9CA3AF',
   buttonBackgroundColor: '#3B82F6',
   buttonTextColor: '#FFFFFF',
   timestampColor: '#6B7280',
@@ -36,6 +37,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const [userScrolled, setUserScrolled] = useState(false);
   const lastMessageCountRef = useRef(messages.length);
+  const previousMessagesRef = useRef<ChatMessage[]>([]);
   
   // Track which messages are new based on timestamp
   // A message is "new" if it was created within the last 30 seconds
@@ -74,6 +76,40 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
     lastMessageCountRef.current = messages.length;
   }, [messages.length, userScrolled]);
+  
+  // Detect when conversation changes (session switch)
+  useEffect(() => {
+    // Check if this is a completely different conversation
+    const hasConversationChanged = () => {
+      // If we had messages before and now we have different ones
+      if (previousMessagesRef.current.length > 0 && messages.length > 0) {
+        // Check if the first message ID is different (indicates new conversation)
+        const prevFirstId = previousMessagesRef.current[0]?.id;
+        const currentFirstId = messages[0]?.id;
+        
+        // Also check if multiple IDs have changed (not just additions)
+        const prevIds = previousMessagesRef.current.map(m => m.id).join(',');
+        const currentIds = messages.map(m => m.id).join(',');
+        
+        // If first message is different or the ID sequence has changed significantly
+        return prevFirstId !== currentFirstId || 
+               (prevIds && currentIds && !currentIds.startsWith(prevIds.substring(0, Math.min(prevIds.length, 50))));
+      }
+      return false;
+    };
+    
+    if (hasConversationChanged()) {
+      // Reset scroll state for new conversation
+      setUserScrolled(false);
+      // Scroll to bottom immediately for new conversation
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+      }, 50);
+    }
+    
+    // Update the reference for next comparison
+    previousMessagesRef.current = [...messages];
+  }, [messages]);
   
   // Focus input on mount
   useEffect(() => {
@@ -225,8 +261,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       )}
       
       {/* Input Area */}
-      <form onSubmit={handleSubmit} className="chat-input-container border-t border-gray-200" style={{ backgroundColor: colorConfig.headerBackgroundColor }}>
+      <form onSubmit={handleSubmit} className="p-4" style={{ backgroundColor: colorConfig.backgroundColor }}>
         <div className="flex items-center space-x-2">
+          <style>
+            {`
+              input::placeholder {
+                color: ${colorConfig.placeholderTextColor};
+                opacity: 1;
+              }
+            `}
+          </style>
           <input
             ref={inputRef}
             type="text"
@@ -237,13 +281,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             disabled={isLoading || shouldShowLoading}
             className={clsx(
               "flex-1 px-4 py-2 rounded-full",
-              "placeholder-gray-500",
               "focus:outline-none focus:ring-2 focus:ring-offset-2",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               "transition-all duration-200"
             )}
             style={{
-              backgroundColor: colorConfig.inputBackgroundColor,
+              backgroundColor: colorConfig.backgroundColor,
               color: colorConfig.inputTextColor,
               '--tw-ring-color': colorConfig.buttonBackgroundColor,
             } as React.CSSProperties}
@@ -341,6 +384,15 @@ const AnimatedMessageBubble: React.FC<AnimatedMessageBubbleProps> = ({
   const [displayedText, setDisplayedText] = useState(shouldAnimate ? '' : message.content);
   const [currentIndex, setCurrentIndex] = useState(shouldAnimate ? 0 : message.content.length);
   const [isTyping, setIsTyping] = useState(shouldAnimate);
+  const messageRef = useRef<HTMLDivElement>(null);
+  
+  // Auto-scroll during typing animation
+  useEffect(() => {
+    if (isTyping && messageRef.current) {
+      // Scroll the message into view smoothly as it types
+      messageRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [displayedText, isTyping]);
   
   useEffect(() => {
     // Only run animation logic if we're currently typing
@@ -408,27 +460,27 @@ const AnimatedMessageBubble: React.FC<AnimatedMessageBubbleProps> = ({
     // Determine delay based on chunk content and size
     const getDelay = () => {
       // Base delay that creates a feeling similar to LLM streaming
-      const baseDelay = 30 + Math.random() * 50; // 30-80ms base
+      const baseDelay = 20 + Math.random() * 35; // 20-55ms base (was 30-80ms)
       
       // Check if we just finished a sentence
       const lastChar = chunk[chunk.length - 1];
       if (['.', '!', '?'].includes(lastChar)) {
-        return baseDelay + 200 + Math.random() * 300; // 230-580ms pause after sentence
+        return baseDelay + 150 + Math.random() * 200; // 170-405ms pause after sentence (was 230-580ms)
       }
       
       // Check for other punctuation
       if ([',', ';', ':'].includes(lastChar)) {
-        return baseDelay + 100 + Math.random() * 100; // 130-280ms pause
+        return baseDelay + 70 + Math.random() * 70; // 90-210ms pause (was 130-280ms)
       }
       
       // Newline gets a medium pause
       if (chunk.includes('\n')) {
-        return baseDelay + 150 + Math.random() * 150; // 180-380ms pause
+        return baseDelay + 100 + Math.random() * 100; // 120-255ms pause (was 180-380ms)
       }
       
       // Occasional random micro-pauses to simulate thinking
       if (Math.random() < 0.15) {
-        return baseDelay + 50 + Math.random() * 150; // 80-280ms occasional pause
+        return baseDelay + 30 + Math.random() * 100; // 50-185ms occasional pause (was 80-280ms)
       }
       
       // Add slight variability based on chunk size
@@ -448,6 +500,7 @@ const AnimatedMessageBubble: React.FC<AnimatedMessageBubbleProps> = ({
   
   return (
     <div
+      ref={messageRef}
       className={clsx(
         "group flex flex-col gap-0.5 mb-3",
         isUser ? "items-end" : "items-start"

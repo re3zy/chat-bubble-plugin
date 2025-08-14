@@ -24,6 +24,7 @@ export interface ColorConfig {
   headerTextColor: string;
   inputBackgroundColor: string;
   inputTextColor: string;
+  placeholderTextColor: string;
   buttonBackgroundColor: string;
   buttonTextColor: string;
   timestampColor: string;

@@ -61,6 +61,8 @@ function App() {
     { name: "assistantTextColor", source: "colorSection", type: "text", defaultValue: "#000000", label: "Assistant Text Color (hex)" },
     { name: "buttonBackgroundColor", source: "colorSection", type: "text", defaultValue: "#3B82F6", label: "Send Button Color (hex)" },
     { name: "buttonTextColor", source: "colorSection", type: "text", defaultValue: "#FFFFFF", label: "Send Button Text Color (hex)" },
+    { name: "inputTextColor", source: "colorSection", type: "text", defaultValue: "#1F2937", label: "Input Text Color (hex)" },
+    { name: "placeholderTextColor", source: "colorSection", type: "text", defaultValue: "#9CA3AF", label: "Placeholder Text Color (hex)" },
     
     // Author detection configuration
     { name: "assistantIdentifiers", type: "text", defaultValue: "assistant,ai,bot,agent", label: "Assistant Identifiers (comma-separated)" },
@@ -100,11 +102,12 @@ function App() {
       assistantTextColor: validateHexColor(config.assistantTextColor, "#000000"),
       buttonBackgroundColor: validateHexColor(config.buttonBackgroundColor, "#3B82F6"),
       buttonTextColor: validateHexColor(config.buttonTextColor, "#FFFFFF"),
+      inputTextColor: validateHexColor(config.inputTextColor, "#1F2937"),
+      placeholderTextColor: validateHexColor(config.placeholderTextColor, "#9CA3AF"),
       // Fixed colors that don't need configuration
       headerBackgroundColor: "#FFFFFF",
       headerTextColor: "#1F2937",
-      inputBackgroundColor: "#F3F4F6",
-      inputTextColor: "#1F2937",
+      inputBackgroundColor: "#F3F4F6", // This will be overridden to use backgroundColor
       timestampColor: "#6B7280",
       dayStampBackgroundColor: "#F3F4F6",
       dayStampTextColor: "#6B7280",
